@@ -1,0 +1,21 @@
+{
+    "db": {
+        "type": "greenplum",
+        "userid": "gpadmin",
+        "passwd": ""
+    },
+    "role_of_this_node": "master",
+    "osuid": "gpadmin",
+    "promote": {
+        "timeout": "600",
+        "check_interval": 10,
+        "max_retry_count": 5,
+        "script_pre":  "/data/greenplum/naed/pre_promote.sh",
+        "script_post": "/data/greenplum/naed/post_promote.sh"
+    },
+    "coordinators": [
+        {"name":"cdw1", "role":"master",  "addr":"cdw-1.myhost.cc", "port":"5432"},
+        {"name":"cdw2", "role":"standby", "addr":"cdw-2.myhost.cc", "port":"5432"},
+        {"name":"cdw3", "role":"monitor", "addr":"cdw-3.myhost.cc", "port":"5432"}
+    ]
+}
