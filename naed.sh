@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-
 # check args # is 2
 if [[ $# != 1 ]]; then
     echo "Usage: $0 <config file>"
@@ -19,142 +18,8 @@ fi
 #     exit
 # fi
 
-log_file=
-full_path=`readlink -f $0`
-script_dir="`dirname $full_path`/log"
-mkdir -p ${script_dir}
-today=`date +%Y%m%d`
-
-host=`hostname -s`
-conf_file=$1
-curnode_idx=
-role_of_this_node=
-
-function _jq() {
-    ret=`cat ${conf_file} | jq -r ${1}`
-    if [[ $ret == 'null' ]]; then
-        ret=''
-    fi
-    echo $ret
-}
-
-# dbtype=`cat $conf_file |  jq -r '.dbtype'`
-dbtype=`_jq '.db.type'` # db type
-db_uid=`_jq '.db.userid'` # userid of admin
-pwd=`_jq '.db.passwd'` # password of admin
-os_uid=`_jq '.osuid'` # os user id
-script_pre_promotion=`_jq '.promote.script_pre'` # script to run before promotion
-script_post_promotion=`_jq '.promote.script_post'` # script to run after promotion
-promote_timeout=`_jq '.promote.timeout'` # timeout for promotion
-max_retry_cnt=`_jq '.promote.max_retry_count'` # max retry count for promotion
-check_interval=`_jq '.promote.check_interval'` # interval to check promotion status
-role_of_this_node=`_jq '.role_of_this_node'` # role of this node
-
-function log_info() {
-    _log_print "INFO" "$1"
-}
-
-function log_warn() {
-    _log_print "WARN" "$1"
-}
-
-function log_error() {
-    _log_print "ERROR" "$1"
-}
-
-function log_fatal() {
-    _log_print "FATAL" "$1"
-}
-
-function log_panic() {
-    _log_print "PANIC" "$1"
-    exit 1
-}
-
-function _log_print() {
-    level=$1
-    message=$2
-    today=`date +%Y%m%d`
-    log_file="${script_dir}/ha.${dbtype}.${host}.${today}.log"
-    t=`date '+%Y-%m-%d %H:%M:%S'`
-    printf '%s-%s-%s-%s\n' "$t" "$level" "${BASH_LINENO[1]}" "$message" | tee -a ${log_file}
-}
-
-# declare structure coordinators as an array of objects with name, role, addr and port
-declare -A coordinator0=(
-    [idx]="0"
-    [name]=`_jq '.coordinators[0].name'`
-    [role]=`_jq '.coordinators[0].role'`
-    [addr]=`_jq '.coordinators[0].addr'`
-    [port]=`_jq '.coordinators[0].port'`
-)
-
-declare -A coordinator1=(
-    [idx]="1"
-    [name]=`_jq '.coordinators[1].name'`
-    [role]=`_jq '.coordinators[1].role'`
-    [addr]=`_jq '.coordinators[1].addr'`
-    [port]=`_jq '.coordinators[1].port'`
-)
-
-declare -A coordinator2=(
-    [idx]="2"
-    [name]=`_jq '.coordinators[2].name'`
-    [role]=`_jq '.coordinators[2].role'`
-    [addr]=`_jq '.coordinators[2].addr'`
-    [port]=`_jq '.coordinators[2].port'`
-)
-
-##############################################################################
-
-declare -n coord_cur
-declare -n coord_master
-declare -n coord_standby
-declare -n coord_monitor
-
-function init_coordinators() {
-    # set current coordinator with curnode_idx
-    declare -n c # reference to coordinator
-    for c in ${!coordinator@}; do
-        # set master/standby/monitor coordinator
-        role="${c[role]}"
-
-        if [[ "$role_of_this_node" == "$role" ]]; then
-            _tmp="coordinator${c[idx]}"
-            coord_cur="${_tmp}"
-        fi
-
-        case $role in
-            'master')
-                _tmp="coordinator${c[idx]}"
-                coord_master="${_tmp}"
-                #echo "master: ${coord_master[name]} ${coord_master[addr]} ${coord_master[port]}"
-                ;;
-            'standby')
-                _tmp="coordinator${c[idx]}"
-                coord_standby="${_tmp}"
-                #echo "standby: ${coord_standby[name]} ${coord_standby[addr]} ${coord_standby[port]}"
-                ;;
-            'monitor')
-                _tmp="coordinator${c[idx]}"
-                coord_monitor="${_tmp}"
-                #echo "monitor: ${coord_monitor[name]} ${coord_monitor[addr]} ${coord_monitor[port]}"
-                ;;
-            *)
-                log_panic "Unknown role: $role"
-                ;;
-        esac
-    done
-
-    case $dbtype in
-        'singlestore' | 'greenplum')
-            # pass!
-            ;;
-        *)
-            log_panic "Unknown dbtype: $dbtype"
-            ;;
-    esac
-}
+# init & import variables
+source _init_.sh $1
 
 function exec_cmd() {
     # we run shell cmd with timeout
@@ -664,11 +529,21 @@ function FO_set_writable() {
 #       - 변경된 롤이 저장된 코디네이터 값들.
 #       - 이전 설정 파일의 경로
 #    3)  다른 두 노드에 대해 아래 내용을 실행한다.
-#       1) 각 노드에 맞게 "role_of_this_node" 변경 & 저장
-#       2) ssh로 이전 파일 백업. (형식은 위와 동일)
-#       3) 새로운 설정파일을 각 노드에 배포
+#       1) ssh로 이전 파일 백업. (형식은 위와 동일)
+#       2) 새로운 설정파일을 각 노드에 배포
 #    이렇게 하면, crontab은 자동으로 스크립트를 실행할 것이고, 새로운 롤에 맞춰서 모니터링을 수행할 것.
 #    어느 정도 시간이 지난 후, 사용자가 수동으로 failback 수행한다.
+
+# jq를 사용한 파일 수정 예제
+# $ echo '{"archive": { "remote": { "host": "1010" } } }' | jq --arg addr "10.205.28.44" '.archive.remote.host = $addr'
+# {
+#   "archive": {
+#     "remote": {
+#       "host": "10.205.28.44"
+#     }
+#   }
+# }
+
 function FO_adjust_coordinators() {
     # adjust coordinators
     case $1 in
@@ -844,7 +719,7 @@ function main() {
 main
 ################################################################################
 
-# echo "current: ${coord_cur[name]} ${coord_cur[addr]} ${coord_cur[port]}"
-# echo "master : ${coord_master[name]} ${coord_master[addr]} ${coord_master[port]}"
-# echo "standby: ${coord_standby[name]} ${coord_standby[addr]} ${coord_standby[port]}"
-# echo "monitor: ${coord_monitor[name]} ${coord_monitor[addr]} ${coord_monitor[port]}"
+# echo "current: ${coord_cur[name]} ${coord_cur[addr]} ${coord_cur[ip]} ${coord_cur[port]}"
+# echo "master : ${coord_master[name]} ${coord_master[addr]} ${coord_master[ip]} ${coord_master[port]}"
+# echo "standby: ${coord_standby[name]} ${coord_standby[addr]} ${coord_standby[ip]} ${coord_standby[port]}"
+# echo "monitor: ${coord_monitor[name]} ${coord_monitor[addr]} ${coord_monitro[ip]} ${coord_monitor[port]}"

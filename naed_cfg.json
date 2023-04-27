@@ -4,18 +4,25 @@
         "userid": "gpadmin",
         "passwd": ""
     },
-    "role_of_this_node": "master",
-    "osuid": "gpadmin",
+
+    "os": {
+        "userid": "gpadmin"
+    },
+
     "promote": {
         "timeout": "600",
         "check_interval": 10,
         "max_retry_count": 5,
-        "script_pre":  "/data/greenplum/naed/pre_promote.sh",
-        "script_post": "/data/greenplum/naed/post_promote.sh"
+        "script_pre": "/data/greenplum/naed/pre_promote.sh",
+        "script_post": "/data/greenplum/naed/post_promote.sh",
+        "dns_api_server": "dns.myhost.cc:9090",
+        "dns_timeout": 300
     },
+
+    "current_node_index": 0,
     "coordinators": [
-        {"name":"cdw1", "role":"master",  "addr":"cdw-1.myhost.cc", "port":"5432"},
-        {"name":"cdw2", "role":"standby", "addr":"cdw-2.myhost.cc", "port":"5432"},
-        {"name":"cdw3", "role":"monitor", "addr":"cdw-3.myhost.cc", "port":"5432"}
+        {"name":"cdw1", "role":"master",  "addr":"cdw-1.myhost.cc", "ip": "10.1.1.10", "port":"5432"},
+        {"name":"cdw2", "role":"standby", "addr":"cdw-2.myhost.cc", "ip": "10.1.1.11", "port":"5432"},
+        {"name":"cdw3", "role":"monitor", "addr":"cdw-3.myhost.cc", "ip": "10.1.1.12", "port":"5432"}
     ]
 }
