@@ -6,8 +6,10 @@ if [[ $# != 1 ]]; then
 fi
 
 # init & import variables
-. _init_.sh $1
+source _init_.sh $1
 
+# call init_coordinators
+init_coordinators
 
 # check variables: dns_api_server, coordip_master, coordip_standby(current nodes)
 if [[ -z "$dns_api_server" ]]; then

@@ -117,19 +117,19 @@ declare -A coordinator2=(
     [port]=`_jq '.coordinators[2].port'`
 )
 
-declare -n coord_cur
-declare -n coord_master
-declare -n coord_standby
-declare -n coord_monitor
-
 # export variables for coordinators
 export coordinator0
 export coordinator1
 export coordinator2
-export coord_cur
-export coord_master
-export coord_standby
-export coord_monitor
+
+declare -n coord_cur
+declare -n coord_master
+declare -n coord_standby
+declare -n coord_monitor
+# export coord_cur
+# export coord_master
+# export coord_standby
+# export coord_monitor
 
 function init_coordinators() {
     # set current coordinator with curnode_idx
